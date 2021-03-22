@@ -7,8 +7,8 @@
 
 #import <UIKit/UIKit.h>
 
-#include "flutter/shell/platform/darwin/common/framework/Headers/FlutterChannels.h"
-#include "flutter/shell/platform/darwin/ios/framework/Source/FlutterTextInputDelegate.h"
+#import "flutter/shell/platform/darwin/common/framework/Headers/FlutterChannels.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterTextInputDelegate.h"
 
 @interface FlutterTextInputPlugin : NSObject
 
@@ -36,9 +36,6 @@
 @end
 
 /** A range of text in the buffer of a Flutter text editing widget. */
-#if FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG
-FLUTTER_EXPORT
-#endif
 @interface FlutterTextRange : UITextRange <NSCopying>
 
 @property(nonatomic, readonly) NSRange range;
@@ -47,8 +44,12 @@ FLUTTER_EXPORT
 
 @end
 
+/** A tokenizer used by `FlutterTextInputView` to customize string parsing. */
+@interface FlutterTokenizer : UITextInputStringTokenizer
+@end
+
 #if FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG
-FLUTTER_EXPORT
+FLUTTER_DARWIN_EXPORT
 #endif
 @interface FlutterTextInputView : UIView <UITextInput>
 
@@ -71,8 +72,10 @@ FLUTTER_EXPORT
 @property(nonatomic, getter=isSecureTextEntry) BOOL secureTextEntry;
 @property(nonatomic) UITextSmartQuotesType smartQuotesType API_AVAILABLE(ios(11.0));
 @property(nonatomic) UITextSmartDashesType smartDashesType API_AVAILABLE(ios(11.0));
+@property(nonatomic, copy) UITextContentType textContentType API_AVAILABLE(ios(10.0));
 
 @property(nonatomic, assign) id<FlutterTextInputDelegate> textInputDelegate;
+@property(nonatomic, assign) UIAccessibilityElement* backingTextInputAccessibilityObject;
 
 @end
 #endif  // SHELL_PLATFORM_IOS_FRAMEWORK_SOURCE_FLUTTERTEXTINPUTPLUGIN_H_

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// @dart = 2.6
+// @dart = 2.12
 part of engine;
 
 /// A bag of all experiment flags in the web engine.
@@ -18,35 +18,52 @@ class WebExperiments {
   }
 
   static WebExperiments ensureInitialized() {
-    if (WebExperiments.instance == null) {
-      WebExperiments.instance = WebExperiments._();
-    }
-    return WebExperiments.instance;
+    return WebExperiments.instance ?? (WebExperiments.instance = WebExperiments._());
   }
 
-  static WebExperiments instance;
+  static WebExperiments? instance;
 
   /// Experiment flag for using canvas-based text measurement.
-  bool get useCanvasText => _useCanvasText ?? false;
-  set useCanvasText(bool enabled) {
-    _useCanvasText = enabled;
+  bool get useCanvasText => _useCanvasText;
+  set useCanvasText(bool? enabled) {
+    _useCanvasText = enabled ?? _defaultUseCanvasText;
   }
 
-  bool _useCanvasText = const bool.fromEnvironment(
+  static const bool _defaultUseCanvasText = const bool.fromEnvironment(
     'FLUTTER_WEB_USE_EXPERIMENTAL_CANVAS_TEXT',
-    defaultValue: null,
+    defaultValue: true,
   );
+
+  bool _useCanvasText = _defaultUseCanvasText;
+
+  // TODO(mdebbar): Clean up https://github.com/flutter/flutter/issues/71952
+  /// Experiment flag for using canvas-based measurement for rich text.
+  bool get useCanvasRichText => _useCanvasRichText;
+  set useCanvasRichText(bool? enabled) {
+    _useCanvasRichText = enabled ?? _defaultUseCanvasRichText;
+  }
+
+  static const bool _defaultUseCanvasRichText = const bool.fromEnvironment(
+    'FLUTTER_WEB_USE_EXPERIMENTAL_CANVAS_RICH_TEXT',
+    defaultValue: true,
+  );
+
+  bool _useCanvasRichText = _defaultUseCanvasRichText;
 
   /// Reset all experimental flags to their default values.
   void reset() {
-    _useCanvasText = null;
+    _useCanvasText = _defaultUseCanvasText;
+    _useCanvasRichText = _defaultUseCanvasRichText;
   }
 
   /// Used to enable/disable experimental flags in the web engine.
   void updateExperiment(String name, bool enabled) {
     switch (name) {
       case 'useCanvasText':
-        _useCanvasText = enabled;
+        useCanvasText = enabled;
+        break;
+      case 'useCanvasRichText':
+        useCanvasRichText = enabled;
         break;
     }
   }

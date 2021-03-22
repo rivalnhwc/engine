@@ -59,11 +59,11 @@ class _WindowsBinding implements PlatformBinding {
 
   @override
   String getChromeDownloadUrl(String version) =>
-      'https://www.googleapis.com/download/storage/v1/b/chromium-browser-snapshots/o/Win%2F${version}%2Fchrome-win32.zip?alt=media';
+      'https://www.googleapis.com/download/storage/v1/b/chromium-browser-snapshots/o/Win%2F${version}%2Fchrome-win.zip?alt=media';
 
   @override
   String getChromeExecutablePath(io.Directory versionDir) =>
-      path.join(versionDir.path, 'chrome-win32', 'chrome');
+      path.join(versionDir.path, 'chrome-win', 'chrome.exe');
 
   @override
   String getFirefoxDownloadUrl(String version) =>
@@ -231,4 +231,12 @@ class DevNull implements StringSink {
   void writeln([Object obj = ""]) {}
 }
 
+/// Whether the felt command is running on Cirrus CI.
 bool get isCirrus => io.Platform.environment['CIRRUS_CI'] == 'true';
+
+/// Whether the felt command is running on LUCI.
+bool get isLuci => io.Platform.environment['LUCI_CONTEXT'] != null;
+
+/// Whether the felt command is running on one of the Continuous Integration
+/// environements.
+bool get isCi => isCirrus || isLuci;

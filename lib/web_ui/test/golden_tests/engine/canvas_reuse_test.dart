@@ -5,13 +5,18 @@
 // @dart = 2.6
 import 'dart:html' as html;
 
+import 'package:test/bootstrap/browser.dart';
+import 'package:test/test.dart';
 import 'package:ui/ui.dart' hide TextStyle;
 import 'package:ui/src/engine.dart';
-import 'package:test/test.dart';
 
 import 'package:web_engine_tester/golden_tester.dart';
 
-void main() async {
+void main() {
+  internalBootstrapBrowserTest(() => testMain);
+}
+
+void testMain() async {
   const double screenWidth = 600.0;
   const double screenHeight = 800.0;
   const Rect screenRect = Rect.fromLTWH(0, 0, screenWidth, screenHeight);
@@ -29,7 +34,8 @@ void main() async {
 
   // Regression test for https://github.com/flutter/flutter/issues/51514
   test('Canvas is reused and z-index doesn\'t leak across paints', () async {
-    final EngineCanvas engineCanvas = BitmapCanvas(screenRect);
+    final EngineCanvas engineCanvas = BitmapCanvas(screenRect,
+        RenderStrategy());
     const Rect region = Rect.fromLTWH(0, 0, 500, 500);
 
     // Draw first frame into engine canvas.
@@ -39,7 +45,8 @@ void main() async {
       ..moveTo(3, 0)
       ..lineTo(100, 97);
     rc.drawPath(path, testPaint);
-    rc.apply(engineCanvas);
+    rc.endRecording();
+    rc.apply(engineCanvas, screenRect);
     engineCanvas.endOfPaint();
 
     html.Element sceneElement = html.Element.tag('flt-scene');
@@ -69,7 +76,8 @@ void main() async {
       ..quadraticBezierTo(100, 0, 100, 100);
     rc2.drawImage(_createRealTestImage(), Offset(0, 0), Paint());
     rc2.drawPath(path2, testPaint);
-    rc2.apply(engineCanvas);
+    rc2.endRecording();
+    rc2.apply(engineCanvas, screenRect);
 
     sceneElement = html.Element.tag('flt-scene');
     sceneElement.append(engineCanvas.rootElement);

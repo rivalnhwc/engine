@@ -6,11 +6,23 @@
 import 'dart:async';
 import 'dart:io' as io;
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 
 import 'environment.dart';
+import 'exceptions.dart';
+
+/// Clears the terminal screen and places the cursor at the top left corner.
+///
+/// This works on Linux and Mac. On Windows, it's a no-op.
+void clearTerminalScreen() {
+  if (!io.Platform.isWindows) {
+    // See: https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_sequences
+    print("\x1B[2J\x1B[1;2H");
+  }
+}
 
 class FilePath {
   FilePath.fromCwd(String relativePath)
@@ -26,8 +38,8 @@ class FilePath {
       path.relative(_absolutePath, from: environment.webUiRootDir.path);
 
   @override
-  bool operator ==(dynamic other) {
-    return other is FilePath && _absolutePath == other._absolutePath;
+  bool operator ==(Object other) {
+    return other is FilePath && other._absolutePath == _absolutePath;
   }
 
   @override
@@ -40,6 +52,7 @@ Future<int> runProcess(
   List<String> arguments, {
   String workingDirectory,
   bool mustSucceed: false,
+  Map<String, String> environment = const <String, String>{},
 }) async {
   final io.Process process = await io.Process.start(
     executable,
@@ -49,6 +62,7 @@ Future<int> runProcess(
     // the process is not able to get Dart from path.
     runInShell: io.Platform.isWindows,
     mode: io.ProcessStartMode.inheritStdio,
+    environment: environment,
   );
   final int exitCode = await process.exitCode;
   if (mustSucceed && exitCode != 0) {
@@ -64,7 +78,7 @@ Future<int> runProcess(
 }
 
 /// Runs [executable]. Do not follow the exit code or the output.
-void startProcess(
+Future<void> startProcess(
   String executable,
   List<String> arguments, {
   String workingDirectory,
@@ -105,6 +119,26 @@ Future<String> evalProcess(
     );
   }
   return result.stdout as String;
+}
+
+Future<void> runFlutter(
+  String workingDirectory,
+  List<String> arguments, {
+  bool useSystemFlutter = false,
+}) async {
+  final String executable =
+      useSystemFlutter ? 'flutter' : environment.flutterCommand.path;
+  arguments.add('--local-engine=host_debug_unopt');
+  final int exitCode = await runProcess(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory,
+  );
+
+  if (exitCode != 0) {
+    throw ToolException('ERROR: Failed to run $executable with '
+        'arguments ${arguments.toString()}. Exited with exit code $exitCode');
+  }
 }
 
 @immutable
@@ -162,16 +196,47 @@ mixin ArgUtils<T> on Command<T> {
   }
 }
 
+/// Parses additional options that can be used for all tests.
+class GeneralTestsArgumentParser {
+  static final GeneralTestsArgumentParser _singletonInstance =
+      GeneralTestsArgumentParser._();
+
+  /// The [GeneralTestsArgumentParser] singleton.
+  static GeneralTestsArgumentParser get instance => _singletonInstance;
+
+  GeneralTestsArgumentParser._();
+
+  /// If target name is provided integration tests can run that one test
+  /// instead of running all the tests.
+  bool verbose = false;
+
+  void populateOptions(ArgParser argParser) {
+    argParser
+      ..addFlag(
+        'verbose',
+        defaultsTo: false,
+        help: 'Flag to indicate extra logs should also be printed.',
+      );
+  }
+
+  /// Populate results of the arguments passed.
+  void parseOptions(ArgResults argResults) {
+    verbose = argResults['verbose'] as bool;
+  }
+}
+
+bool get isVerboseLoggingEnabled => GeneralTestsArgumentParser.instance.verbose;
+
 /// There might be proccesses started during the tests.
 ///
 /// Use this list to store those Processes, for cleaning up before shutdown.
-final List<io.Process> processesToCleanUp = List<io.Process>();
+final List<io.Process> processesToCleanUp = <io.Process>[];
 
 /// There might be temporary directories created during the tests.
 ///
 /// Use this list to store those directories and for deleteing them before
 /// shutdown.
-final List<io.Directory> temporaryDirectories = List<io.Directory>();
+final List<io.Directory> temporaryDirectories = <io.Directory>[];
 
 typedef AsyncCallback = Future<void> Function();
 
@@ -179,7 +244,7 @@ typedef AsyncCallback = Future<void> Function();
 ///
 /// Add these operations here to make sure that they will run before felt
 /// exit.
-final List<AsyncCallback> cleanupCallbacks = List<AsyncCallback>();
+final List<AsyncCallback> cleanupCallbacks = <AsyncCallback>[];
 
 /// Cleanup the remaning processes, close open browsers, delete temp files.
 void cleanup() async {
@@ -192,11 +257,13 @@ void cleanup() async {
   // Delete temporary directories.
   if (temporaryDirectories.length > 0) {
     for (io.Directory directory in temporaryDirectories) {
-      directory.deleteSync(recursive: true);
+      if (!directory.existsSync()) {
+        directory.deleteSync(recursive: true);
+      }
     }
   }
 
-  cleanupCallbacks.forEach((element) {
-    element.call();
-  });
+  for (final AsyncCallback callback in cleanupCallbacks) {
+    await callback();
+  }
 }

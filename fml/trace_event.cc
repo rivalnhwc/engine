@@ -12,19 +12,14 @@
 #include "flutter/fml/build_config.h"
 #include "flutter/fml/logging.h"
 
-#if (FLUTTER_RELEASE && !defined(OS_FUCHSIA))
-#define TIMELINE_ENABLED 0
-#else
-#define TIMELINE_ENABLED 1
-#endif
-
 namespace fml {
 namespace tracing {
 
-#if TIMELINE_ENABLED
+#if FLUTTER_TIMELINE_ENABLED
 
 namespace {
-AsciiTrie gWhitelist;
+AsciiTrie gAllowlist;
+TimelineEventHandler gTimelineEventHandler;
 
 inline void FlutterTimelineEvent(const char* label,
                                  int64_t timestamp0,
@@ -33,15 +28,19 @@ inline void FlutterTimelineEvent(const char* label,
                                  intptr_t argument_count,
                                  const char** argument_names,
                                  const char** argument_values) {
-  if (gWhitelist.Query(label)) {
-    Dart_TimelineEvent(label, timestamp0, timestamp1_or_async_id, type,
-                       argument_count, argument_names, argument_values);
+  if (gTimelineEventHandler && gAllowlist.Query(label)) {
+    gTimelineEventHandler(label, timestamp0, timestamp1_or_async_id, type,
+                          argument_count, argument_names, argument_values);
   }
 }
 }  // namespace
 
-void TraceSetWhitelist(const std::vector<std::string>& whitelist) {
-  gWhitelist.Fill(whitelist);
+void TraceSetAllowlist(const std::vector<std::string>& allowlist) {
+  gAllowlist.Fill(allowlist);
+}
+
+void TraceSetTimelineEventHandler(TimelineEventHandler handler) {
+  gTimelineEventHandler = handler;
 }
 
 size_t TraceNonce() {
@@ -219,6 +218,40 @@ void TraceEventInstant0(TraceArg category_group, TraceArg name) {
   );
 }
 
+void TraceEventInstant1(TraceArg category_group,
+                        TraceArg name,
+                        TraceArg arg1_name,
+                        TraceArg arg1_val) {
+  const char* arg_names[] = {arg1_name};
+  const char* arg_values[] = {arg1_val};
+  FlutterTimelineEvent(name,                         // label
+                       Dart_TimelineGetMicros(),     // timestamp0
+                       0,                            // timestamp1_or_async_id
+                       Dart_Timeline_Event_Instant,  // event type
+                       1,                            // argument_count
+                       arg_names,                    // argument_names
+                       arg_values                    // argument_values
+  );
+}
+
+void TraceEventInstant2(TraceArg category_group,
+                        TraceArg name,
+                        TraceArg arg1_name,
+                        TraceArg arg1_val,
+                        TraceArg arg2_name,
+                        TraceArg arg2_val) {
+  const char* arg_names[] = {arg1_name, arg2_name};
+  const char* arg_values[] = {arg1_val, arg2_val};
+  FlutterTimelineEvent(name,                         // label
+                       Dart_TimelineGetMicros(),     // timestamp0
+                       0,                            // timestamp1_or_async_id
+                       Dart_Timeline_Event_Instant,  // event type
+                       2,                            // argument_count
+                       arg_names,                    // argument_names
+                       arg_values                    // argument_values
+  );
+}
+
 void TraceEventFlowBegin0(TraceArg category_group,
                           TraceArg name,
                           TraceIDArg id) {
@@ -256,9 +289,11 @@ void TraceEventFlowEnd0(TraceArg category_group, TraceArg name, TraceIDArg id) {
   );
 }
 
-#else  // TIMELINE_ENABLED
+#else  // FLUTTER_TIMELINE_ENABLED
 
-void TraceSetWhitelist(const std::vector<std::string>& whitelist) {}
+void TraceSetAllowlist(const std::vector<std::string>& allowlist) {}
+
+void TraceSetTimelineEventHandler(TimelineEventHandler handler) {}
 
 size_t TraceNonce() {
   return 0;
@@ -322,6 +357,18 @@ void TraceEventAsyncEnd1(TraceArg category_group,
 
 void TraceEventInstant0(TraceArg category_group, TraceArg name) {}
 
+void TraceEventInstant1(TraceArg category_group,
+                        TraceArg name,
+                        TraceArg arg1_name,
+                        TraceArg arg1_val) {}
+
+void TraceEventInstant2(TraceArg category_group,
+                        TraceArg name,
+                        TraceArg arg1_name,
+                        TraceArg arg1_val,
+                        TraceArg arg2_name,
+                        TraceArg arg2_val) {}
+
 void TraceEventFlowBegin0(TraceArg category_group,
                           TraceArg name,
                           TraceIDArg id) {}
@@ -333,7 +380,7 @@ void TraceEventFlowStep0(TraceArg category_group,
 void TraceEventFlowEnd0(TraceArg category_group, TraceArg name, TraceIDArg id) {
 }
 
-#endif  // TIMELINE_ENABLED
+#endif  // FLUTTER_TIMELINE_ENABLED
 
 }  // namespace tracing
 }  // namespace fml
